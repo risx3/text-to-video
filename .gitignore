@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+.uv/
+dist/
+build/
+*.egg-info/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# HuggingFace / model cache (don't commit weights)
+backend/outputs/
+*.ckpt
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+
+# Vite legacy project
+vite-project/node_modules/
+vite-project/dist/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
