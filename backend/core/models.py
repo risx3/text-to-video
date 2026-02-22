@@ -42,7 +42,9 @@ def _load_pipe_sync() -> Any:
         torch_dtype=dtype,
     )
     pipe.scheduler = EulerDiscreteScheduler.from_config(
-        pipe.scheduler.config, beta_schedule="linear"
+        pipe.scheduler.config,
+        beta_schedule="linear",
+        timestep_spacing="trailing",
     )
 
     device = settings.device

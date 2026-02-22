@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from pathlib import Path
 from typing import Callable, Awaitable
 
 import torch

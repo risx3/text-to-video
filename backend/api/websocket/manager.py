@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
-from typing import Optional
 
 from fastapi import WebSocket
 from starlette.websockets import WebSocketState

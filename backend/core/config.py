@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # ── AnimateDiff / Stable Diffusion ────────────────────────────────────────
-    motion_adapter_id: str = "guoyww/animatediff-motion-adapter-v1-5-2"
+    motion_adapter_id: str = "ByteDance/AnimateDiff-Lightning"
     base_model_id: str = "runwayml/stable-diffusion-v1-5"
     torch_dtype: str = "float16"   # used as string; converted in models.py
     device: str = "mps"            # "mps" | "cuda" | "cpu"
@@ -18,11 +18,12 @@ class Settings(BaseSettings):
     # num_frames=8 avoids the 16-frame × spatial-attention OOM on Apple Silicon.
     # SD 1.5 native resolution is 512×512; going lower hurts quality more than
     # reducing frames does.
+    # AnimateDiff-Lightning: 4 steps at guidance_scale=1.0 (distilled model).
     num_frames: int = 8
     width: int = 512
     height: int = 512
-    num_inference_steps: int = 25
-    guidance_scale: float = 7.5
+    num_inference_steps: int = 4
+    guidance_scale: float = 1.0
     fps: int = 8
 
     # ── MLX LLM ───────────────────────────────────────────────────────────────
