@@ -26,14 +26,28 @@ def _load_pipe_sync() -> Any:
     """Blocking loader — run in executor to avoid blocking event loop."""
     from diffusers import AnimateDiffPipeline, MotionAdapter, EulerDiscreteScheduler
     from diffusers.utils import USE_PEFT_BACKEND  # noqa: F401 (ensures compat)
-    from huggingface_hub import snapshot_download  # noqa: F401
+    from huggingface_hub import hf_hub_download
 
     dtype = torch.float16 if settings.torch_dtype == "float16" else torch.float32
 
     logger.info("Loading MotionAdapter: %s", settings.motion_adapter_id)
-    adapter = MotionAdapter.from_pretrained(
-        settings.motion_adapter_id, torch_dtype=dtype
-    )
+
+    # AnimateDiff-Lightning ships as bare safetensors files (no config.json),
+    # so MotionAdapter.from_pretrained won't work. Load weights manually.
+    if "AnimateDiff-Lightning" in settings.motion_adapter_id:
+        from safetensors.torch import load_file
+        steps = settings.num_inference_steps
+        ckpt = f"animatediff_lightning_{steps}step_diffusers.safetensors"
+        logger.info("Downloading Lightning checkpoint: %s", ckpt)
+        adapter = MotionAdapter()
+        adapter.load_state_dict(
+            load_file(hf_hub_download(settings.motion_adapter_id, ckpt), device="cpu")
+        )
+        adapter = adapter.to(dtype=dtype)
+    else:
+        adapter = MotionAdapter.from_pretrained(
+            settings.motion_adapter_id, torch_dtype=dtype
+        )
 
     logger.info("Loading AnimateDiffPipeline: %s", settings.base_model_id)
     pipe = AnimateDiffPipeline.from_pretrained(
@@ -41,11 +55,20 @@ def _load_pipe_sync() -> Any:
         motion_adapter=adapter,
         torch_dtype=dtype,
     )
-    pipe.scheduler = EulerDiscreteScheduler.from_config(
-        pipe.scheduler.config,
-        beta_schedule="linear",
-        timestep_spacing="trailing",
-    )
+    # Lightning requires clean scheduler params — do NOT inherit from the SD1.5
+    # PNDM config (which uses beta_schedule="scaled_linear" and PNDM-specific
+    # keys). Use an explicit init with exactly the values Lightning was trained on.
+    if "AnimateDiff-Lightning" in settings.motion_adapter_id:
+        pipe.scheduler = EulerDiscreteScheduler(
+            beta_start=0.00085,
+            beta_end=0.012,
+            beta_schedule="linear",
+            timestep_spacing="trailing",
+        )
+    else:
+        pipe.scheduler = EulerDiscreteScheduler.from_config(
+            pipe.scheduler.config, beta_schedule="linear"
+        )
 
     device = settings.device
     logger.info("Moving pipeline to device: %s", device)

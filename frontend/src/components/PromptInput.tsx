@@ -10,7 +10,7 @@ export default function PromptInput({ onSubmit, disabled = false }: Props) {
   const [prompt, setPrompt] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [numFrames, setNumFrames] = useState(8)
-  const [steps, setSteps] = useState(25)
+  const [steps, setSteps] = useState(8)
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -66,10 +66,10 @@ export default function PromptInput({ onSubmit, disabled = false }: Props) {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">
-              Steps ({steps})
+              Steps ({steps}) — Lightning: 4 or 8
             </label>
             <input
-              type="range" min={10} max={50} step={5}
+              type="range" min={4} max={8} step={4}
               value={steps}
               onChange={(e) => setSteps(Number(e.target.value))}
               disabled={disabled}
