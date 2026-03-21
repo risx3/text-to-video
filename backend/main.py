@@ -6,6 +6,7 @@ import logging
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.websockets import WebSocketState
 
 from backend.api.routes import jobs as jobs_router
 from backend.api.routes import videos as videos_router
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Text-to-Video API",
-    description="Generate animated GIFs from text prompts using AnimateDiff on Apple Silicon.",
+    description="Generate animated GIFs from text prompts using AnimateDiff (CUDA, MPS, or CPU).",
     version="0.1.0",
 )
 
@@ -33,8 +34,8 @@ app.add_middleware(
         "http://localhost:3000",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ async def websocket_endpoint(ws: WebSocket, job_id: str):
             try:
                 await asyncio.wait_for(ws.receive_text(), timeout=30)
             except asyncio.TimeoutError:
-                if ws.client_state.value == 1:  # CONNECTED
+                if ws.client_state == WebSocketState.CONNECTED:
                     await ws.send_text('{"type":"ping"}')
     except WebSocketDisconnect:
         pass
@@ -67,7 +68,8 @@ async def websocket_endpoint(ws: WebSocket, job_id: str):
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    from backend.core.config import settings
+    return {"status": "ok", "device": settings.device}
 
 
 if __name__ == "__main__":

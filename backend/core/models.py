@@ -22,13 +22,23 @@ _llm_lock = asyncio.Lock()
 
 # ── AnimateDiff ───────────────────────────────────────────────────────────────
 
+def _resolve_dtype() -> torch.dtype:
+    """Select appropriate dtype for the current device."""
+    device = settings.device
+    # CPU does not support float16 reliably on all ops; use float32 there.
+    if device == "cpu":
+        return torch.float32
+    return torch.float16 if settings.torch_dtype == "float16" else torch.float32
+
+
 def _load_pipe_sync() -> Any:
     """Blocking loader — run in executor to avoid blocking event loop."""
     from diffusers import AnimateDiffPipeline, MotionAdapter, EulerDiscreteScheduler
     from diffusers.utils import USE_PEFT_BACKEND  # noqa: F401 (ensures compat)
     from huggingface_hub import hf_hub_download
 
-    dtype = torch.float16 if settings.torch_dtype == "float16" else torch.float32
+    dtype = _resolve_dtype()
+    device = settings.device
 
     logger.info("Loading MotionAdapter: %s", settings.motion_adapter_id)
 
@@ -70,11 +80,10 @@ def _load_pipe_sync() -> Any:
             pipe.scheduler.config, beta_schedule="linear"
         )
 
-    device = settings.device
     logger.info("Moving pipeline to device: %s", device)
     pipe = pipe.to(device)
 
-    # ── Memory optimisations (critical for MPS / Apple Silicon) ───────────────
+    # ── Memory optimisations ──────────────────────────────────────────────────
     # 1. Slice spatial self-attention to avoid one giant Q·Kᵀ matrix.
     pipe.enable_attention_slicing(1)
 
@@ -83,14 +92,22 @@ def _load_pipe_sync() -> Any:
 
     # 3. Chunk the UNet feed-forward pass along the batch (frame) dimension so
     #    only one frame at a time flows through the heavy linear projections.
-    #    This is the fix for the 16 GiB single-MTLBuffer OOM with 16 frames.
+    #    Especially important for MPS and low-VRAM CUDA GPUs.
     try:
         pipe.unet.enable_forward_chunking(chunk_size=1, dim=1)
         logger.info("UNet forward chunking enabled (chunk_size=1, dim=1).")
     except Exception as exc:
         logger.warning("Could not enable UNet forward chunking: %s", exc)
 
-    logger.info("AnimateDiff pipeline ready.")
+    # 4. Enable CPU offload for CUDA devices if available (reduces VRAM usage).
+    if device == "cuda":
+        try:
+            pipe.enable_model_cpu_offload()
+            logger.info("CUDA model CPU offload enabled.")
+        except Exception as exc:
+            logger.warning("Could not enable CPU offload: %s", exc)
+
+    logger.info("AnimateDiff pipeline ready on %s.", device)
     return pipe
 
 
@@ -99,16 +116,20 @@ async def get_pipe() -> Any:
     if _pipe is None:
         async with _pipe_lock:
             if _pipe is None:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 _pipe = await loop.run_in_executor(None, _load_pipe_sync)
     return _pipe
 
 
-# ── MLX LLM ───────────────────────────────────────────────────────────────────
+# ── MLX LLM (Apple Silicon only) ─────────────────────────────────────────────
 
 def _load_llm_sync() -> tuple[Any, Any]:
-    """Blocking loader — run in executor."""
-    from mlx_lm import load
+    """Blocking loader — run in executor. Returns (None, None) if mlx unavailable."""
+    try:
+        from mlx_lm import load
+    except ImportError:
+        logger.warning("mlx-lm not installed — prompt enhancement disabled.")
+        return None, None
 
     logger.info("Loading MLX LLM: %s", settings.llm_model_id)
     model, tokenizer = load(settings.llm_model_id)
@@ -121,7 +142,7 @@ async def get_llm() -> tuple[Any, Any]:
     if _llm_model is None:
         async with _llm_lock:
             if _llm_model is None:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 _llm_model, _llm_tokenizer = await loop.run_in_executor(
                     None, _load_llm_sync
                 )

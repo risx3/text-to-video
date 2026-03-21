@@ -19,13 +19,26 @@ logger = logging.getLogger(__name__)
 ProgressCallback = Callable[[int, str], Awaitable[None]]
 
 
+def _free_device_cache() -> None:
+    """Release cached memory on the active compute device."""
+    try:
+        device = settings.device
+        if device == "cuda" and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif device == "mps" and hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+        # CPU has no explicit cache to free
+    except Exception as exc:
+        logger.debug("Device cache release skipped: %s", exc)
+
+
 async def run_job(
     job_id: str,
     on_progress: ProgressCallback,
 ) -> None:
     """
     Full pipeline for a single job:
-      1. Enhance prompt via LLM
+      1. Enhance prompt via LLM (optional)
       2. Run AnimateDiff
       3. Export GIF
       4. Update job store + call progress callback
@@ -51,7 +64,7 @@ async def run_job(
 
         # ── Step 3: Build diffusers callback ──────────────────────────────────
         total_steps = job.num_inference_steps
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def step_callback(pipe_inner, step: int, timestep, callback_kwargs):
             # Map inference steps → 12–90% range
@@ -115,8 +128,4 @@ async def run_job(
         raise
 
     finally:
-        # Free MPS memory after each job
-        try:
-            torch.mps.empty_cache()
-        except Exception:
-            pass
+        _free_device_cache()

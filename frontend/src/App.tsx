@@ -18,7 +18,7 @@ export default function App() {
             Text&nbsp;<span className="text-indigo-400">→</span>&nbsp;Video
           </h1>
           <p className="text-gray-400 text-sm">
-            Powered by AnimateDiff + mlx-lm on Apple Silicon
+            Powered by AnimateDiff · runs on CUDA, Apple Silicon, or CPU
           </p>
         </div>
 

@@ -2,6 +2,19 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 
 
+def _default_device() -> str:
+    """Auto-detect the best available compute device."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+    except ImportError:
+        pass
+    return "cpu"
+
+
 class Settings(BaseSettings):
     # ── Server ────────────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
@@ -12,10 +25,11 @@ class Settings(BaseSettings):
     motion_adapter_id: str = "ByteDance/AnimateDiff-Lightning"
     base_model_id: str = "runwayml/stable-diffusion-v1-5"
     torch_dtype: str = "float16"   # used as string; converted in models.py
-    device: str = "mps"            # "mps" | "cuda" | "cpu"
+    # "auto" resolves to cuda > mps > cpu at model-load time.
+    device: str = "auto"
 
     # ── Generation defaults ───────────────────────────────────────────────────
-    # num_frames=8 avoids the 16-frame × spatial-attention OOM on Apple Silicon.
+    # num_frames=8 avoids large spatial-attention OOM on memory-constrained GPUs.
     # SD 1.5 native resolution is 512×512; going lower hurts quality more than
     # reducing frames does.
     # AnimateDiff-Lightning: 8 steps at guidance_scale=1.0 (distilled model).
@@ -26,7 +40,10 @@ class Settings(BaseSettings):
     guidance_scale: float = 1.0
     fps: int = 8
 
-    # ── MLX LLM ───────────────────────────────────────────────────────────────
+    # ── MLX LLM (Apple Silicon only — optional on other platforms) ────────────
+    # Set enable_llm=false on non-Apple or memory-constrained hosts to skip
+    # prompt enhancement and use the raw prompt directly.
+    enable_llm: bool = True
     llm_model_id: str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
     llm_max_tokens: int = 200
     llm_temp: float = 0.7
@@ -38,6 +55,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Resolve "auto" device once at startup
+if settings.device == "auto":
+    settings.device = _default_device()
 
 # Ensure outputs directory exists
 settings.outputs_dir.mkdir(parents=True, exist_ok=True)

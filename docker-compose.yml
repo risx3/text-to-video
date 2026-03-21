@@ -1,0 +1,47 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # For NVIDIA GPU, override the base image:
+      # args:
+      #   BASE_IMAGE: pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
+    ports:
+      - "8000:8000"
+    environment:
+      # Override with "cuda" when running on an NVIDIA host with the NVIDIA Container Toolkit
+      TTV_DEVICE: ${TTV_DEVICE:-cpu}
+      TTV_ENABLE_LLM: ${TTV_ENABLE_LLM:-false}
+      TTV_NUM_FRAMES: ${TTV_NUM_FRAMES:-8}
+      TTV_NUM_INFERENCE_STEPS: ${TTV_NUM_INFERENCE_STEPS:-8}
+    volumes:
+      # Persist generated GIFs across container restarts
+      - ./backend/outputs:/app/backend/outputs
+      # Mount HuggingFace model cache to avoid re-downloading on restart
+      - huggingface_cache:/root/.cache/huggingface
+    # ── NVIDIA GPU support ─────────────────────────────────────────────────────
+    # Uncomment the deploy block and set TTV_DEVICE=cuda to use an NVIDIA GPU.
+    # Requires NVIDIA Container Toolkit: https://docs.nvidia.com/datacenter/cloud-native/
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      # Points the Vite dev proxy at the backend service
+      VITE_BACKEND_HOST: backend
+      VITE_BACKEND_PORT: "8000"
+    depends_on:
+      - backend
+
+volumes:
+  huggingface_cache:

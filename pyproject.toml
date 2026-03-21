@@ -1,7 +1,7 @@
 [project]
 name = "text-to-video"
 version = "0.1.0"
-description = "Text-to-video generation app using AnimateDiff + mlx-lm on Apple Silicon"
+description = "Text-to-video generation app using AnimateDiff — runs on CUDA, Apple Silicon (MPS), or CPU"
 requires-python = ">=3.11"
 dependencies = [
     # Web framework
@@ -11,21 +11,25 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
     "websockets>=13.0",
-    # ML — PyTorch MPS (Apple Silicon)
+    # ML — PyTorch (CUDA, MPS, or CPU; install the right wheel for your platform)
     "torch>=2.4.0",
     "torchvision>=0.19.0",
     "diffusers>=0.30.0",
     "transformers>=4.45.0",
     "accelerate>=1.0.0",
     "safetensors>=0.4.5",
-    # LLM — Apple Silicon native
-    "mlx>=0.19.0",
-    "mlx-lm>=0.19.0",
     # Video / image output
     "imageio>=2.35.0",
     "imageio-ffmpeg>=0.5.1",
     "Pillow>=10.4.0",
     "numpy>=1.26.0",
+]
+
+# Apple Silicon: install with `uv sync --extra apple-silicon`
+[project.optional-dependencies]
+apple-silicon = [
+    "mlx>=0.19.0",
+    "mlx-lm>=0.19.0",
 ]
 
 [build-system]
