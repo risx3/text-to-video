@@ -20,7 +20,7 @@ class JobStatus(str, Enum):
 
 class JobCreate(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=1000, description="User text prompt")
-    num_frames: Optional[int] = Field(None, ge=4, le=64)
+    num_frames: Optional[int] = Field(None, ge=4, le=128)
     num_inference_steps: Optional[int] = Field(None, ge=1, le=100)
     guidance_scale: Optional[float] = Field(None, ge=1.0, le=20.0)
     width: Optional[int] = Field(None, ge=256, le=1024)
@@ -55,9 +55,9 @@ class Job(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Generation params (resolved from request + defaults)
-    num_frames: int = 16
-    num_inference_steps: int = 25
-    guidance_scale: float = 7.5
+    num_frames: int = 64
+    num_inference_steps: int = 8
+    guidance_scale: float = 1.0
     width: int = 512
     height: int = 512
 

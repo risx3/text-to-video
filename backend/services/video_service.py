@@ -40,7 +40,7 @@ async def run_job(
     Full pipeline for a single job:
       1. Enhance prompt via LLM (optional)
       2. Run AnimateDiff
-      3. Export GIF
+      3. Export MP4
       4. Update job store + call progress callback
     """
     job = job_service.get_job(job_id)
@@ -69,7 +69,7 @@ async def run_job(
         def step_callback(pipe_inner, step: int, timestep, callback_kwargs):
             # Map inference steps → 12–90% range
             pct = 12 + int((step / total_steps) * 78)
-            msg = f"Generating frame {step}/{total_steps}"
+            msg = f"Denoising step {step}/{total_steps}"
             # Schedule coroutine on event loop from sync context
             asyncio.run_coroutine_threadsafe(
                 on_progress(pct, msg), loop
@@ -92,19 +92,26 @@ async def run_job(
 
         frames = await loop.run_in_executor(None, _run_inference)
 
-        # ── Step 5: Export GIF ────────────────────────────────────────────────
-        await on_progress(92, "Exporting GIF…")
+        # ── Step 5: Export MP4 ────────────────────────────────────────────────
+        await on_progress(92, "Exporting MP4…")
 
-        gif_filename = f"{uuid.uuid4()}.gif"
-        gif_path = settings.outputs_dir / gif_filename
+        mp4_filename = f"{uuid.uuid4()}.mp4"
+        mp4_path = settings.outputs_dir / mp4_filename
 
         def _export():
-            from diffusers.utils import export_to_gif
-            export_to_gif(frames, str(gif_path), fps=settings.fps)
+            import imageio
+            import numpy as np
+            writer = imageio.get_writer(
+                str(mp4_path), fps=settings.fps, codec="libx264",
+                quality=8, pixelformat="yuv420p",
+            )
+            for frame in frames:
+                writer.append_data(np.array(frame))
+            writer.close()
 
         await loop.run_in_executor(None, _export)
 
-        video_url = f"/api/videos/{gif_filename}"
+        video_url = f"/api/videos/{mp4_filename}"
         job_service.update_job(
             job_id,
             status=JobStatus.completed,
@@ -113,7 +120,7 @@ async def run_job(
             message="Done!",
         )
         await on_progress(100, "Done!")
-        logger.info("Job %s completed → %s", job_id, gif_path)
+        logger.info("Job %s completed → %s", job_id, mp4_path)
 
     except Exception as exc:
         logger.exception("Job %s failed", job_id)

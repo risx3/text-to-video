@@ -22,6 +22,7 @@ build/
 !.env.example
 
 # HuggingFace / model cache (don't commit weights)
+models/
 backend/outputs/
 *.ckpt
 *.safetensors

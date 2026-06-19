@@ -77,7 +77,7 @@ export default function App() {
                     download
                     className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                   >
-                    Download GIF
+                    Download MP4
                   </a>
                 </div>
               </div>

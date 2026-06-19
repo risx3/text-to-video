@@ -29,16 +29,18 @@ class Settings(BaseSettings):
     device: str = "auto"
 
     # ── Generation defaults ───────────────────────────────────────────────────
-    # num_frames=8 avoids large spatial-attention OOM on memory-constrained GPUs.
-    # SD 1.5 native resolution is 512×512; going lower hurts quality more than
-    # reducing frames does.
     # AnimateDiff-Lightning: 8 steps at guidance_scale=1.0 (distilled model).
-    num_frames: int = 8
+    # FreeNoise sliding window enables longer generation beyond the 16-frame
+    # training window. 64 frames @ 8 fps = 8 seconds of video.
+    num_frames: int = 64
     width: int = 512
     height: int = 512
     num_inference_steps: int = 8
     guidance_scale: float = 1.0
     fps: int = 8
+    # FreeNoise context window (must be ≤ num_frames, typically 16)
+    free_noise_context_length: int = 16
+    free_noise_context_stride: int = 4
 
     # ── MLX LLM (Apple Silicon only — optional on other platforms) ────────────
     # Set enable_llm=false on non-Apple or memory-constrained hosts to skip

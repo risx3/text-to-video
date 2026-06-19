@@ -46,13 +46,19 @@ def _load_pipe_sync() -> Any:
     # so MotionAdapter.from_pretrained won't work. Load weights manually.
     if "AnimateDiff-Lightning" in settings.motion_adapter_id:
         from safetensors.torch import load_file
+        import os
         steps = settings.num_inference_steps
         ckpt = f"animatediff_lightning_{steps}step_diffusers.safetensors"
-        logger.info("Downloading Lightning checkpoint: %s", ckpt)
+        logger.info("Loading Lightning checkpoint: %s", ckpt)
+
+        local_path = os.path.join(settings.motion_adapter_id, ckpt)
+        if os.path.isfile(local_path):
+            ckpt_path = local_path
+        else:
+            ckpt_path = hf_hub_download(settings.motion_adapter_id, ckpt)
+
         adapter = MotionAdapter()
-        adapter.load_state_dict(
-            load_file(hf_hub_download(settings.motion_adapter_id, ckpt), device="cpu")
-        )
+        adapter.load_state_dict(load_file(ckpt_path, device="cpu"))
         adapter = adapter.to(dtype=dtype)
     else:
         adapter = MotionAdapter.from_pretrained(
@@ -106,6 +112,21 @@ def _load_pipe_sync() -> Any:
             logger.info("CUDA model CPU offload enabled.")
         except Exception as exc:
             logger.warning("Could not enable CPU offload: %s", exc)
+
+    # 5. Enable FreeNoise for longer video generation via sliding-window
+    #    temporal attention (generates beyond the 16-frame training window).
+    try:
+        pipe.enable_free_noise(
+            context_length=settings.free_noise_context_length,
+            context_stride=settings.free_noise_context_stride,
+        )
+        logger.info(
+            "FreeNoise enabled (context_length=%d, stride=%d).",
+            settings.free_noise_context_length,
+            settings.free_noise_context_stride,
+        )
+    except Exception as exc:
+        logger.warning("Could not enable FreeNoise: %s", exc)
 
     logger.info("AnimateDiff pipeline ready on %s.", device)
     return pipe
